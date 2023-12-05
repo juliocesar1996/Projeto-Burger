@@ -1,103 +1,94 @@
 import * as Yup from 'yup'
-import Category from '../models/Product'
+import Category from '../models/Category'
 import User from '../models/User'
 
 class CategoryController {
-    async store(request, response){
+  async store(request, response) {
+    try {
+      const schema = Yup.object().shape({
+        name: Yup.string().required(),
+      })
 
+      try {
+        await schema.validateSync(request.body, { abortEarly: false })
+      } catch (err) {
+        return response.status(400).json({ error: err.errors })
+      }
 
-        const schema = Yup.object().shape({
-            name: Yup.string().required(),
+      const { admin: isAdmin } = await User.findByPk(request.userId)
 
-        })
+      if (!isAdmin) {
+        return response.status(401).json()
+      }
 
-        try {
-            await schema.validateSync(request.body, { abortEarly: false })
-        } catch (err) {
-          return response.status(400).json({ error: err.errors })
-        }
+      const { name } = request.body
 
-        const { admin: isAdmin } = await User.findByPk(request.userId)
+      const { filename: path } = request.file
 
-        if (!isAdmin) {
-            return response.status(401).json()
-        }
+      const categoryExists = await Category.findOne({
+        where: {
+          name,
+        },
+      })
 
-        const { name } = request.body
+      if (categoryExists) {
+        return response.status(400).json({ error: 'Category already exists' })
+      }
 
-        const { filename: path } = request.file
+      const { id } = await Category.create({ name, path })
 
-        const categoryExists = await Category.findOne({
-            where: {
-                name,
-            },
-        })
-
-        if(categoryExists) {
-            return response.status(400).json({ error: 'Category already exists'})
-        }
-
-        const { id } = await Category.create({ name, path });
-
-        return response.json({ id, name })
+      return response.json({ name, id })
+    } catch (err) {
+      console.log(err)
     }
+  }
 
-   catch (err) {
-        console.log(err)
-    }
+  async index(request, response) {
+    const category = await Category.findAll()
 
-    async index(request, response){
+    return response.json(category)
+  }
 
-        const category = await Category.findAll()
+  async update(request, response) {
+    try {
+      const schema = Yup.object().shape({
+        name: Yup.string(),
+      })
 
-        return response.json(category)
-    }
-    
-    async update(request, response){
+      try {
+        await schema.validateSync(request.body, { abortEarly: false })
+      } catch (err) {
+        return response.status(400).json({ error: err.errors })
+      }
 
-       try {
-        const schema = Yup.object().shape({
-            name: Yup.string(),
+      const { admin: isAdmin } = await User.findByPk(request.userId)
 
-        })
+      if (!isAdmin) {
+        return response.status(401).json()
+      }
 
-        try {
-            await schema.validateSync(request.body, { abortEarly: false })
-        } catch (err) {
-          return response.status(400).json({ error: err.errors })
-        }
+      const { name } = request.body
 
-        const { admin: isAdmin } = await User.findByPk(request.userId)
+      const { id } = request.params
 
-        if (!isAdmin) {
-            return response.status(401).json()
-        }
+      const category = await Category.findByPk(id)
 
-        const { name } = request.body
+      if (!category) {
+        return response
+          .status(401)
+          .json({ error: 'Make sure your category ID is correct' })
+      }
 
-        const { id } = request.params
+      let path
+      if (request.file) {
+        path = request.file.filename
+      }
 
-        const category = await Category.findByPk(id)
+      await Category.update({ name, path }, { where: { id } })
 
-        if(!category){
-            return response
-            .status(401)
-            .json({ error: "Make sure your category id is correct" })
-        }
-
-        let path
-        if(request.file){
-            path = request.file.filename
-        }
-
-        
-        await Category.update({ name, path }, { where: { id } });
-
-        return response.status(200).json({ id, name })
-    }
-
-   catch (err) {
-        console.log(err)
+      return response.status(200).json()
+    } catch (err) {
+      console.log(err)
     }
   }
 }
